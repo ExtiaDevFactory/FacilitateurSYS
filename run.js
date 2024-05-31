@@ -1,98 +1,125 @@
-const fs = require('fs');
+const fs = require('fs').promises;
 const readline = require('readline').createInterface({
   input: process.stdin,
   output: process.stdout
 });
 
+const colors = require('colors');
+
 const HOMOLOGATION = 'Homologation';
 const PRODUCTION = 'Production';
 
-const getEnvironment = () => {
+const HOMOLOGATION_COLORED = HOMOLOGATION.green;
+const PRODUCTION_COLORED = PRODUCTION.red;
+
+const welcomeArt = `
+${'.'.repeat(40).cyan}
+  _   _ _____  _   _ _____ 
+ | | | |  _  || | | |  ___|
+ | |_| | | | || | | | |_  
+ |  _  | | | || | | |  _| 
+ | | | | |_| || |_| | |   
+ |_| |_|_____||_____|_|   
+${'.'.repeat(40).cyan}
+
+`;
+
+const checkFileExistence = async () => {
+  try {
+    await fs.access('fichier');
+    console.log('Directory "fichier" found.'.green);
+
+    const files = await fs.readdir('fichier');
+    if (files.length === 0) {
+      console.error('No files found in "fichier" directory. Exiting script.'.red);
+      process.exit(1);
+    } else {
+      console.log('Files found in "fichier" directory.'.green);
+    }
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      console.error(`Directory "fichier" not found. Please ensure it exists before running the script.`.red);
+      process.exit(1);
+    } else {
+      console.error(error.red);
+    }
+  }
+};
+
+const getEnvironment = async () => {
+  console.log(welcomeArt);
   return new Promise((resolve, reject) => {
-    readline.question(`Choose environment (${HOMOLOGATION} or ${PRODUCTION}): `, (environment) => {
+    readline.question(`Choose environment (${HOMOLOGATION_COLORED} or ${PRODUCTION_COLORED}): `, (environment) => {
       if (environment.toLowerCase() === HOMOLOGATION.toLowerCase()) {
         resolve(HOMOLOGATION);
       } else if (environment.toLowerCase() === PRODUCTION.toLowerCase()) {
         resolve(PRODUCTION);
       } else {
-        reject(new Error('Invalid environment'));
+        reject(new Error('Invalid environment'.red));
       }
     });
   });
 };
 
+
 const modifyFileNames = async (environment, multiValue) => {
-  const files = await fs.promises.readdir('fichier');
-  const multiRegex = /MULTI/gi; // Case-insensitive global search for "MULTI"
-  const fsyfcispRegex = /FSYFCISP/g; // Case-insensitive global search for "FSYFCISP"
-  const h07000Regex = /H07000\d$/g; // Case-insensitive global search for "H07000" followed by a digit
+  try {
+    const files = await fs.readdir('fichier');
+    console.log('Files found in "fichier" directory.'.green);
 
-  let lastH07000Value = 0; // Initialize a counter for the last H07000 value
+    const multiRegex = /MULTI/gi;
+    const fsyfcispRegex = /FSYFCISP/g;
+    const h07000Regex = /H07000\d$/g;
 
-  for (const fileName of files) {
-    let newFileName = fileName; // Start with the original filename
+    let lastH07000Value = 0;
 
-    // Apply modifications based on environment:
-    if (environment === HOMOLOGATION) {
-      newFileName = newFileName.replace(multiRegex, multiValue);
-      newFileName = newFileName.replace(fsyfcispRegex, 'FSYFCISH');
+    for (const fileName of files) {
+      let newFileName = fileName;
 
-      // Ensure "TO_" is preserved:
-      if (newFileName.startsWith('TO_')) {
-        newFileName = newFileName.replace(/^TO_/, 'TO_' + multiValue);
-      }
+      if (environment === HOMOLOGATION) {
+        newFileName = newFileName.replace(multiRegex, multiValue);
+        newFileName = newFileName.replace(fsyfcispRegex, 'FSYFCISH');
 
-      // Modify H07000 portion:
-      const h07000Match = newFileName.match(h07000Regex);
-      if (h07000Match) {
-        let newLastDigit = parseInt(h07000Match[0].slice(-1)) + 1; // Increment the last digit
-
-        // Check if a file with the modified H07000 value already exists:
-        let fileAlreadyExists = true;
-        while (fileAlreadyExists) {
-          const modifiedFileName = newFileName.replace(h07000Regex, `H07000${newLastDigit}`);
-          try {
-            await fs.promises.access(`fichier/${modifiedFileName}`);
-            console.log(`File already exists: ${modifiedFileName}`);
-            newLastDigit++; // Increment the last digit again
-          } catch (error) {
-            if (error.code === 'ENOENT') { // File doesn't exist
-              fileAlreadyExists = false;
-            } else {
-              console.error(error);
-              break; // Exit the loop if there's an unexpected error
-            }
-          }
+        if (newFileName.startsWith('TO_')) {
+          newFileName = newFileName.replace(/^TO_/, 'TO_' + multiValue);
         }
 
-        newFileName = newFileName.replace(h07000Regex, `H07000${newLastDigit}`);
+        const h07000Match = newFileName.match(h07000Regex);
+        if (h07000Match) {
+          let newLastDigit = parseInt(h07000Match[0].slice(-1)) + 1;
 
-        // Update the counter for the next file:
-        lastH07000Value = newLastDigit;
+          while (await fs.access(`fichier/${newFileName.replace(h07000Regex, `H07000${newLastDigit}`)}`).catch(() => {})) {
+            console.log(`File already exists: ${newFileName.replace(h07000Regex, `H07000${newLastDigit}`)}`.yellow);
+            newLastDigit++;
+          }
+
+          newFileName = newFileName.replace(h07000Regex, `H07000${newLastDigit}`);
+          lastH07000Value = newLastDigit;
+        }
+      } else {
+        console.log(`Skipping modifications for ${PRODUCTION} environment.`.yellow);
       }
-    } else {
-      console.log(`Skipping modifications for Production environment.`);
-    }
 
-    if (newFileName !== fileName) {
-      await fs.promises.rename(`fichier/${fileName}`, `fichier/${newFileName}`);
-      console.log(`File renamed: ${fileName} -> ${newFileName}`);
+      if (newFileName !== fileName) {
+        await fs.rename(`fichier/${fileName}`, `fichier/${newFileName}`);
+        console.log(`File renamed: ${fileName} -> ${newFileName}`.green);
+      }
     }
+  } catch (error) {
+    console.error(error.red);
   }
 };
 
 (async () => {
   try {
+    await checkFileExistence(); // Check for directory and files
     const environment = await getEnvironment();
-
-    // Get user input for MULTI value
     const multiValue = await new Promise((resolve) => {
       readline.question('Enter the new value for "MULTI": ', resolve);
     });
-
     await modifyFileNames(environment, multiValue);
   } catch (error) {
-    console.error(error);
+    console.error(error.red);
   } finally {
     readline.close();
   }

@@ -21,7 +21,7 @@ This script automates the process of renaming files based on user input, making 
 2.  **Clone the Script:** Clone or download the script repository to your local machine.
 3. ⌨️ **Run the Script:** Open a terminal window, navigate to the script directory, and run the following command:
    ```bash
-   node script.js
+   node run.js
    ```
 4. ➡️ **Follow the Prompts:** The script will guide you through the process, asking for environment selection, MULTI value, and confirmation.
 5. 🪄 **File Renaming:** The script will then rename your files according to your input and the specified rules.

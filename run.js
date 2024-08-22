@@ -24,6 +24,32 @@ ${'.'.repeat(40).cyan}
 
 `;
 
+const recipients = {
+  "Adyen": "73829",
+  "Arkea": "15589",
+  "BNPP": "30004",
+  "BPCE BP": "30007",
+  "BPCE CE": "19505",
+  "CAPS": "30007",
+  "Checkout": "17208",
+  "CIC": "30066",
+  "CM": "45539",
+  "HSBC": "30056",
+  "LBP": "20041",
+  "LCL": "30002",
+  "Monext": "17028",
+  "CB - PARIS": "??",
+  "STET": "??",
+  "Société Générale": "30003",
+  "Stripe": "75491",
+  "VEF": "??",
+  "Worldline": "??",
+  "CB-Claranet": "??",
+  "CB-DSCB": "??",
+  "CB-SITEL": "??",
+  "UPI": "??"
+};
+
 const checkFileExistence = async () => {
   try {
     await fs.access('fichier');
@@ -61,6 +87,24 @@ const getEnvironment = async () => {
   });
 };
 
+const getRecipientChoice = async () => {
+  console.log('Please select a recipient:'.cyan);
+  const options = Object.keys(recipients);
+  options.forEach((option, index) => {
+    console.log(`${index + 1}: ${option} (${recipients[option]})`.yellow);
+  });
+
+  return new Promise((resolve, reject) => {
+    readline.question('Enter the number corresponding to your choice: ', (choice) => {
+      const index = parseInt(choice) - 1;
+      if (index >= 0 && index < options.length) {
+        resolve(recipients[options[index]]);
+      } else {
+        reject(new Error('Invalid choice'.red));
+      }
+    });
+  });
+};
 
 const modifyFileNames = async (environment, multiValue) => {
   try {
@@ -88,7 +132,7 @@ const modifyFileNames = async (environment, multiValue) => {
         if (h07000Match) {
           let newLastDigit = parseInt(h07000Match[0].slice(-1)) + 1;
 
-          while (await fs.access(`fichier/${newFileName.replace(h07000Regex, `H07000${newLastDigit}`)}`).catch(() => {})) {
+          while (await fs.access(`fichier/${newFileName.replace(h07000Regex, `H07000${newLastDigit}`)}`).catch(() => { })) {
             console.log(`File already exists: ${newFileName.replace(h07000Regex, `H07000${newLastDigit}`)}`.yellow);
             newLastDigit++;
           }
@@ -114,9 +158,7 @@ const modifyFileNames = async (environment, multiValue) => {
   try {
     await checkFileExistence(); // Check for directory and files
     const environment = await getEnvironment();
-    const multiValue = await new Promise((resolve) => {
-      readline.question('Enter the new value for "MULTI": ', resolve);
-    });
+    const multiValue = await getRecipientChoice();
     await modifyFileNames(environment, multiValue);
   } catch (error) {
     console.error(error.red);
